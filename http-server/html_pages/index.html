@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My Server</title>
+ <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 20px;
+            background-color: #2d2d2d;
+            color: #d4d4d4;
+        }
+
+        h1 {
+            color: #a6a6a6;
+        }
+
+        ul {
+            list-style-type: square;
+            padding-left: 20px;
+            color: #d4d4d4;
+        }
+
+        input {
+            padding: 10px;
+            margin: 10px 0;
+            background-color: #333;
+            color: #d4d4d4;
+            border: 1px solid #555;
+            border-radius: 5px;
+            outline: none;
+        }
+
+        button {
+            padding: 10px;
+            background-color: #00853E;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #007537;
+        }
+		
+		
+    </style>
+
+    <script>
+        function sendPutRequest() {
+            // Get the value from the input field
+            var nameValue = document.getElementById('nameInput').value;
+
+            // Create a new XMLHttpRequest object
+            var xhr = new XMLHttpRequest();
+
+            // Configure it: PUT-request for the specified URL
+            xhr.open("PUT", "http://localhost:8080/my-name", true);
+
+            // Set the content type of the request
+            xhr.setRequestHeader("Content-Type", "text/plain");
+
+            // Define what happens on successful data submission
+            xhr.onload = function() {
+                if (xhr.status === 201) {
+                    alert('PUT request successful');
+                    // Handle success, if needed
+                } else {
+                    alert('PUT request failed');
+                    // Handle errors, if needed
+                }
+            };
+
+            // Define what happens in case of an error
+            xhr.onerror = function() {
+                alert('Network error during PUT request');
+                // Handle errors, if needed
+            };
+
+            xhr.send(nameValue);
+        }
+		
+		 function sendDeleteRequest() {
+            // Create a new XMLHttpRequest object
+            var xhr = new XMLHttpRequest();
+
+            // Configure it: DELETE-request for the specified URL
+            xhr.open("DELETE", "http://localhost:8080/my-name", true);
+
+            // Define what happens on successful data submission
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    alert('DELETE request successful');
+                    // Handle success, if needed
+                } else {
+                    alert('DELETE request failed');
+                    // Handle errors, if needed
+                }
+            };
+
+            // Define what happens in case of an error
+            xhr.onerror = function() {
+                alert('Network error during DELETE request');
+                // Handle errors, if needed
+            };
+			xhr.send();
+        }
+    </script>
+</head>
+<body>
+
+    <h1>My Server</h1>
+	{user-data}
+	<br/>
+    <input type="text" id="nameInput" placeholder="Enter your name">
+    <button onclick="sendPutRequest()">Send PUT Request</button>
+	<button onclick="sendDeleteRequest()">Send DELETE Request (remove name)</button>
+
+    <ul>
+        <li>index - <a href="/">/</a></li>
+        <li>Cat facts - <a href="/cat-facts.html">Cat facts</a></li>
+        <li>Dog facts - <a href="/dog-facts.html">Dog facts</a></li>
+        <li>Cat facts (Hebrew) - <a href="/cat-facts.html?lang=he">עובדות על חתולים</a></li>
+        <li>Dog facts (Hebrew) - <a href="/dog-facts.html?lang=he">עובדות על כלבים</a></li>
+    </ul>
+
+</body>
+</html>
