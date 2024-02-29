@@ -61,14 +61,14 @@ void HttpServer::WaitForActivity() {
 
 	for (int index = 0; index < sockets.size(); index++) {
 		const auto& socket = sockets[index];
-		if (socket.recv == RECEIVE && socket.handle == IDLE && isInactive(socket)) {
+		if (socket.recv == RECEIVE && socket.send == IDLE && isInactive(socket)) {
 			closesocket(socket.id);
 			RemoveSocket(index);
 		}
 		if ((socket.recv == LISTEN) || (socket.recv == RECEIVE)) {
 			FD_SET(socket.id, &waitRecv);
 		}
-		if (socket.handle == HANDLE) {
+		if (socket.send == SEND) {
 			FD_SET(socket.id, &waitSend);
 		}
 	}
@@ -91,7 +91,7 @@ void HttpServer::HandleSockets() {
 			}
 		}
 		if (FD_ISSET(sockets[i].id, &waitSend)) {
-			if (sockets[i].handle == HANDLE) {
+			if (sockets[i].send == SEND) {
 				HandleHttpRequest(i);
 			}
 		}
@@ -146,7 +146,7 @@ void HttpServer::ReceiveMessage(size_t index) {
 		sockets[index].len += bytesRecv;
 
 		sockets[index].requests.push(Request(sockets[index].buffer));
-		sockets[index].handle = HANDLE;
+		sockets[index].send = SEND;
 	}
 }
 
@@ -171,7 +171,6 @@ bool HttpServer::AddSocket(SOCKET id, sockaddr_in from, int what) {
 			sockets[i].id = id;
 			sockets[i].recv = what;
 			sockets[i].send = IDLE;
-			sockets[i].handle = IDLE;
 			sockets[i].len = 0;
 			sockets[i].ip = std::string(inet_ntoa(from.sin_addr)) + ":" + std::to_string(ntohs(from.sin_port));
 			sockets[i].updateLastActivity();
@@ -184,7 +183,6 @@ bool HttpServer::AddSocket(SOCKET id, sockaddr_in from, int what) {
 void HttpServer::RemoveSocket(size_t index) {
 	sockets[index].recv = EMPTY;
 	sockets[index].send = EMPTY;
-	sockets[index].handle = EMPTY;
 	sockets[index].name = "";
 	sockets[index].lenName = 0;
 }
@@ -211,7 +209,7 @@ void HttpServer::HandleHttpRequest(size_t index) {
 
 	sockets[index].requests.pop();
 	if (sockets[index].requests.empty()) {
-		sockets[index].handle = IDLE;
+		sockets[index].send = IDLE;
 	}
 }
 
@@ -243,7 +241,7 @@ void HttpServer::ProcessValidRoute(size_t index, const Request& request, Respons
 }
 
 void HttpServer::HandleOptions(const Request& request, Response& res) {
-	if (request.getPath() == "*") {
+	if (request.getPath() == "*") { // all the allowed options
 		res.addHeader("Allow", "OPTIONS, GET, HEAD, POST, PUT, DELETE, TRACE");
 	}
 	else {
@@ -265,22 +263,30 @@ void HttpServer::HandlePut(size_t index, const Request& request, Response& res) 
 }
 
 void HttpServer::HandleGet(size_t index, const Request& request, Response& res) {
+	if (request.getPath() == "/my-name") {
+		res.setContent(sockets[index].name);
+		res.addHeader("Content-Type", "text/plain");
+		res.setStatus(HTTP_OK);
+		return;
+	}
 	std::string filePath;
 	std::string langDir = request.getQueryParam("lang");
+	if (langDir == "en") langDir = ""; // english is the default language
 	std::string fileName = request.getPath() != "/" ? request.getPath() : "index.html";
 
-	filePath = "html_pages\\" + langDir + "\\" + fileName;
+	filePath = RESOURCES_PATH + langDir + "\\" + fileName;
 
 	std::ifstream file(filePath, std::ios::binary);
 	if (file.is_open()) {
-		std::string content = HandleFileRead(file);
+		std::string content = Utils().HandleFileRead(file);
 		if (request.getPath() == "/") {
 			content = std::regex_replace(content, std::regex("\\{user-data\\}"), getUserData(sockets[index]));
 		}
 		res.setContent(content);
-		res.addHeader("Content-Type", getMimeTypeFromExtension(filePath));
+		res.addHeader("Content-Type", Utils().getMimeTypeFromExtension(filePath));
 		res.setStatus(HTTP_OK);
 	}
+
 	else {
 		res.setStatus(HTTP_NOT_FOUND);
 	}
@@ -306,13 +312,6 @@ void HttpServer::HandleTrace(const Request& request, Response& res) {
 	res.setContent(request.getOriginalRequest());
 }
 
-std::string HttpServer::HandleFileRead(std::ifstream& file) {
-	std::stringstream fileContent;
-	fileContent << file.rdbuf();
-	return fileContent.str();
-}
-
-
 int HttpServer::ValidateRoute(const std::string& route, const std::string method) {
 	auto selectedRoute = routes.find(route);
 	if (selectedRoute == routes.end()) {
@@ -322,19 +321,6 @@ int HttpServer::ValidateRoute(const std::string& route, const std::string method
 		return NOT_ALLOWED;
 	}
 	return ALLOWED;
-}
-
-std::string HttpServer::getMimeTypeFromExtension(const std::string& filename) {
-	size_t pos = filename.find_last_of('.');
-	if (pos == std::string::npos) {
-		return ""; // No extension found
-	}
-	std::string extension = filename.substr(pos + 1);
-	auto it = mime_types.find(extension);
-	if (it == mime_types.end()) {
-		return ""; // Unknown extension
-	}
-	return it->second;
 }
 
 std::string HttpServer::getUserData(SocketState& socketState) {

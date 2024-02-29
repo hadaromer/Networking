@@ -31,9 +31,8 @@
 *.out
 *.app
 
-*/.vs/*
-/http-server/x64/Debug
-/x64/Debug
+*/.vs
+*/x64/Debug
 *.vcxproj
 *.vcxproj.filters
 *.vcxproj.user
