@@ -63,7 +63,7 @@
 
             // Define what happens on successful data submission
             xhr.onload = function() {
-                if (xhr.status === 201) {
+                if (xhr.status === 201 || xhr.status === 200) {
                     alert('PUT request successful');
                     // Handle success, if needed
                 } else {
@@ -106,6 +106,40 @@
             };
 			xhr.send();
         }
+
+        function sendPostRequest() {
+            // Get the value from the input field
+            var commentValue = document.getElementById('commentInput').value;
+
+            // Create a new XMLHttpRequest object
+            var xhr = new XMLHttpRequest();
+
+            // Configure it: PUT-request for the specified URL
+            xhr.open("POST", "http://localhost:8080/post-comment", true);
+
+            // Set the content type of the request
+            xhr.setRequestHeader("Content-Type", "text/plain");
+
+            // Define what happens on successful data submission
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    alert('POST request successful');
+                    // Handle success, if needed
+                } else {
+                    alert('POST request failed');
+                    // Handle errors, if needed
+                }
+            };
+
+            // Define what happens in case of an error
+            xhr.onerror = function() {
+                alert('Network error during POST request');
+                // Handle errors, if needed
+            };
+
+            xhr.send(commentValue);
+        }
+		
     </script>
 </head>
 <body>
@@ -117,12 +151,18 @@
     <button onclick="sendPutRequest()">Send PUT Request</button>
 	<button onclick="sendDeleteRequest()">Send DELETE Request (remove name)</button>
 
+    <br/>
+    <input type="text" id="commentInput" placeholder="Enter your comment">
+    <button onclick="sendPostRequest()">Send POST Request</button>
+
     <ul>
         <li>index - <a href="/">/</a></li>
         <li>Cat facts - <a href="/cat-facts.html">Cat facts</a></li>
         <li>Dog facts - <a href="/dog-facts.html">Dog facts</a></li>
         <li>Cat facts (Hebrew) - <a href="/cat-facts.html?lang=he">עובדות על חתולים</a></li>
         <li>Dog facts (Hebrew) - <a href="/dog-facts.html?lang=he">עובדות על כלבים</a></li>
+        <li>Cat facts (French) - <a href="/cat-facts.html?lang=fr">5 Faits Sur les Chats</a></li>
+        <li>Dog facts (French) - <a href="/dog-facts.html?lang=fr">5 Faits Sur les Chiens</a></li>
     </ul>
 
 </body>

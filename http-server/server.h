@@ -8,6 +8,7 @@
 #include "utils/StringUtils.h"
 #include "utils/Utils.h"
 #include "common/consts.h"
+#include "http/methods.h"
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -31,22 +32,15 @@ private:
 	bool CreateListenSocket();
 	void WaitForActivity();
 	void HandleSockets();
-	void AcceptConnection(size_t index);
-	void ReceiveMessage(size_t index);
-	void SendMessage(size_t index, Response res, bool shouldAddContent);
+	void AcceptConnection(int index);
+	void ReceiveMessage(int index);
+	void SendMessage(int index, Response res);
 	bool AddSocket(SOCKET id, sockaddr_in from, int what);
-	void RemoveSocket(size_t index);
-	void HandleHttpRequest(size_t index);
-	void ProcessValidRoute(size_t index, const Request& request, Response& res, bool& shouldAddContent);
-	void HandleOptions(const Request& request, Response& res);
-	void HandlePut(size_t index, const Request& request, Response& res);
-	void HandleGet(size_t index, const Request& request, Response& res);
-	void HandlePost(const Request& request, Response& res);
-	void HandleDelete(size_t index, Response& res);
-	void HandleTrace(const Request& request, Response& res);
-	int ValidateRoute(const std::string& route, const std::string method); 
-	std::string getUserData(SocketState& socketState); 
-	bool isInactive(const SocketState& socket); 
+	void RemoveSocket(int index);
+	void HandleHttpRequest(int index);
+	void ProcessValidRoute(int index, const Request& request, Response& res, const Method& method);
+	int ValidateRoute(const std::string& route, const std::string method, Method& outMethod);
+	bool isInactive(const SocketState& socket);
 };
 
 #endif //SERVER_H

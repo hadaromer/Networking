@@ -5,6 +5,7 @@
 #include <queue>
 #include <unordered_map>
 #include "../http/request.h"
+#include "../http/response.h"
 #include <chrono>
 #include <ctime>
 #include <winsock2.h>
@@ -15,21 +16,10 @@ enum RoutesStatus { ROUTE_NOT_FOUND = -1, NOT_ALLOWED = 0, ALLOWED = 1 };
 
 const std::string HTTP_OK = "200 OK";
 const std::string HTTP_CREATED = "201 CREATED";
+const std::string HTTP_BAD_REQUEST = "400 BAD REQUEST";
 const std::string HTTP_NOT_FOUND = "404 NOT FOUND";
 const std::string HTTP_METHOD_NOT_ALLOWED = "405 METHOD NOT ALLOWED";
-const std::string HTTP_NOT_IMPLEMENTED = "501 NOT IMPLEMENTED";
 
-const std::unordered_map<std::string, std::vector<std::string>> routes = {
-	{"/",{"OPTIONS","GET","HEAD","TRACE"}},
-	{"/cat-facts.html",{"OPTIONS","GET","HEAD","TRACE"}},
-	{"/cat.jpg",{"OPTIONS","GET","HEAD","TRACE"}},
-	{"/dog-facts.html",{"OPTIONS","GET","HEAD","TRACE"}},
-	{"/dog.jpg",{"OPTIONS","GET","HEAD","TRACE"}},
-	{"/my-name",{"OPTIONS","TRACE","GET","HEAD","PUT","DELETE"}},
-	{"/post-comment",{"OPTIONS","TRACE","POST"}}
-};
-
-const std::string RESOURCES_PATH = "html_pages\\";
 
 struct SocketState {
 	SOCKET id;
@@ -48,5 +38,16 @@ struct SocketState {
 		lastActivityTime = std::chrono::steady_clock::now();
 	}
 };
+
+typedef void (*HandleFunction)(SocketState& socket, const Request& req, Response& res);
+
+struct Method {
+	std::string methodName;
+	HandleFunction handleFunction;
+};
+
+const std::string RESOURCES_PATH = "html_pages\\";
+
+const struct timeval SELECT_TIMEOUT { 60, 0 }; // one minute timeout for select
 
 #endif //CONSTS_H

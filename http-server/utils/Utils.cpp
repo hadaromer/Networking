@@ -7,7 +7,7 @@ std::string Utils::HandleFileRead(std::ifstream& file) {
 }
 
 std::string Utils::getMimeTypeFromExtension(const std::string& filename) {
-	size_t pos = filename.find_last_of('.');
+	int pos = filename.find_last_of('.');
 	if (pos == std::string::npos) {
 		return ""; // No extension found
 	}
@@ -24,4 +24,13 @@ std::string Utils::getCurrentDate() {
 	time(&timer);
 	std::string date = ctime(&timer);
 	return date;
+}
+
+std::string Utils::getUserData(SocketState& socketState) {
+	time_t timer;
+	time(&timer);
+	std::string name = socketState.lenName > 0 ? socketState.name : "guest";
+	std::string result = "Hello " + name + "!<br / >Your IP : " + socketState.ip + "<br / >Server time : " + ctime(&timer);
+
+	return result;
 }

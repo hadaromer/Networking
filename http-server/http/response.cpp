@@ -1,5 +1,5 @@
 #include "response.h"
-
+#include "../utils/Utils.h"
 
 Response::Response() {}
 
@@ -32,13 +32,17 @@ void Response::setStatus(std::string status) {
 	this->status = status;
 }
 
-std::string Response::to_string(bool shouldAddContent) const {
+void Response::setShouldIncludeContent(bool shouldIncludeContent) {
+	this->shouldIncludeContent = shouldIncludeContent;
+}
+
+std::string Response::to_string() const {
 	std::string response = "HTTP/1.1 " + this->getStatus() + "\n";
 	for (Header header : this->getHeaders()) response += header.to_string() + "\n";
 	response += "Server: MTA-HTTP-SERVER\n";
 	response += "Date: " + Utils().getCurrentDate();
 	response += "Content-Length: " + std::to_string(this->content.length()) + "\n";
-	if (shouldAddContent) {
+	if (this->shouldIncludeContent) {
 		return response + "\n" + this->content;
 	}
 	return response + "\n";

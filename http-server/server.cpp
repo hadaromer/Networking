@@ -10,6 +10,7 @@ HttpServer::~HttpServer() {
 }
 
 void HttpServer::Start() {
+
 	if (Initialize() && CreateListenSocket()) {
 		while (true) {
 			WaitForActivity();
@@ -20,7 +21,11 @@ void HttpServer::Start() {
 
 bool HttpServer::Initialize() {
 	WSAData wsaData;
-	return WSAStartup(MAKEWORD(2, 2), &wsaData) == NO_ERROR;
+	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != NO_ERROR) {
+		std::cout << "Time Server: Error at WSAStartup()\n";
+		return false;
+	}
+	return true;
 }
 
 bool HttpServer::CreateListenSocket() {
@@ -73,11 +78,11 @@ void HttpServer::WaitForActivity() {
 		}
 	}
 
-	select(0, &waitRecv, &waitSend, nullptr, nullptr);
+	select(0, &waitRecv, &waitSend, nullptr, &SELECT_TIMEOUT);
 }
 
 void HttpServer::HandleSockets() {
-	for (size_t i = 0; i < sockets.size(); ++i) {
+	for (int i = 0; i < sockets.size(); ++i) {
 		if (FD_ISSET(sockets[i].id, &waitRecv)) {
 			switch (sockets[i].recv) {
 			case LISTEN:
@@ -98,7 +103,7 @@ void HttpServer::HandleSockets() {
 	}
 }
 
-void HttpServer::AcceptConnection(size_t index) {
+void HttpServer::AcceptConnection(int index) {
 	SOCKET id = sockets[index].id;
 	sockaddr_in from;
 	int fromLen = sizeof(from);
@@ -122,7 +127,7 @@ void HttpServer::AcceptConnection(size_t index) {
 	}
 }
 
-void HttpServer::ReceiveMessage(size_t index) {
+void HttpServer::ReceiveMessage(int index) {
 	SOCKET msgSocket = sockets[index].id;
 
 	int bytesRecv = recv(msgSocket, sockets[index].buffer, sizeof(sockets[index].buffer), 0);
@@ -143,18 +148,18 @@ void HttpServer::ReceiveMessage(size_t index) {
 		sockets[index].buffer[bytesRecv] = '\0'; //add the null-terminating to make it a string
 		std::cout << "Received: " << bytesRecv << " bytes of \"" << sockets[index].buffer << "\" message." << std::endl;
 
-		sockets[index].len += bytesRecv;
+		sockets[index].len = bytesRecv;
 
 		sockets[index].requests.push(Request(sockets[index].buffer));
 		sockets[index].send = SEND;
 	}
 }
 
-void HttpServer::SendMessage(size_t index, Response res, bool shouldAddContent) {
+void HttpServer::SendMessage(int index, Response res) {
 	int bytesSent = 0;
 	SOCKET msgSocket = sockets[index].id;
 
-	std::string msg = res.to_string(shouldAddContent);
+	std::string msg = res.to_string();
 	bytesSent = send(msgSocket, msg.c_str(), msg.length(), 0);
 
 	if (bytesSent == SOCKET_ERROR) {
@@ -166,7 +171,7 @@ void HttpServer::SendMessage(size_t index, Response res, bool shouldAddContent) 
 }
 
 bool HttpServer::AddSocket(SOCKET id, sockaddr_in from, int what) {
-	for (size_t i = 0; i < sockets.size(); ++i) {
+	for (int i = 0; i < sockets.size(); ++i) {
 		if (sockets[i].recv == EMPTY) {
 			sockets[i].id = id;
 			sockets[i].recv = what;
@@ -180,19 +185,18 @@ bool HttpServer::AddSocket(SOCKET id, sockaddr_in from, int what) {
 	return false;
 }
 
-void HttpServer::RemoveSocket(size_t index) {
+void HttpServer::RemoveSocket(int index) {
 	sockets[index].recv = EMPTY;
 	sockets[index].send = EMPTY;
 	sockets[index].name = "";
 	sockets[index].lenName = 0;
 }
 
-void HttpServer::HandleHttpRequest(size_t index) {
+void HttpServer::HandleHttpRequest(int index) {
 	Request request = sockets[index].requests.front();
 	Response res;
-	bool shouldAddContent = true;
-
-	int routeStatus = ValidateRoute(request.getPath(), request.getMethod());
+	Method currentMethod;
+	int routeStatus = ValidateRoute(request.getPath(), request.getMethod(), currentMethod);
 
 	switch (routeStatus) {
 	case NOT_ALLOWED:
@@ -202,10 +206,10 @@ void HttpServer::HandleHttpRequest(size_t index) {
 		res.setStatus(HTTP_NOT_FOUND);
 		break;
 	default:
-		ProcessValidRoute(index, request, res, shouldAddContent);
+		ProcessValidRoute(index, request, res, currentMethod);
 	}
 
-	SendMessage(index, res, shouldAddContent);
+	SendMessage(index, res);
 
 	sockets[index].requests.pop();
 	if (sockets[index].requests.empty()) {
@@ -213,123 +217,23 @@ void HttpServer::HandleHttpRequest(size_t index) {
 	}
 }
 
-void HttpServer::ProcessValidRoute(size_t index, const Request& request, Response& res, bool& shouldAddContent) {
-	if (request.getMethod() == "OPTIONS") {
-		HandleOptions(request, res);
-	}
-	else if (request.getMethod() == "PUT") {
-		HandlePut(index, request, res);
-	}
-	else if (request.getMethod() == "GET" || request.getMethod() == "HEAD") {
-		HandleGet(index, request, res);
-		if (request.getMethod() == "HEAD") {
-			shouldAddContent = false; // in head requests we don't send any data, just headers
-		}
-	}
-	else if (request.getMethod() == "POST") {
-		HandlePost(request, res);
-	}
-	else if (request.getMethod() == "DELETE") {
-		HandleDelete(index, res);
-	}
-	else if (request.getMethod() == "TRACE") {
-		HandleTrace(request, res);
-	}
-	else {
-		res.setStatus(HTTP_NOT_IMPLEMENTED);
-	}
+void HttpServer::ProcessValidRoute(int index, const Request& request, Response& res, const Method& method) {
+	method.handleFunction(sockets[index], request, res);
 }
 
-void HttpServer::HandleOptions(const Request& request, Response& res) {
-	if (request.getPath() == "*") { // all the allowed options
-		res.addHeader("Allow", "OPTIONS, GET, HEAD, POST, PUT, DELETE, TRACE");
-	}
-	else {
-		auto selectedRoute = routes.find(request.getPath());
-		std::string allowedOptions = StringUtils().concatenateWithSpace(selectedRoute->second);
-		res.addHeader("Allow", allowedOptions);
-	}
-}
-
-void HttpServer::HandlePut(size_t index, const Request& request, Response& res) {
-	if (sockets[index].lenName == 0) {
-		res.setStatus(HTTP_CREATED);
-	}
-	else {
-		res.setStatus(HTTP_OK);
-	}
-	sockets[index].name = request.getContent()[0];
-	sockets[index].lenName = sockets[index].name.length();
-}
-
-void HttpServer::HandleGet(size_t index, const Request& request, Response& res) {
-	if (request.getPath() == "/my-name") {
-		res.setContent(sockets[index].name);
-		res.addHeader("Content-Type", "text/plain");
-		res.setStatus(HTTP_OK);
-		return;
-	}
-	std::string filePath;
-	std::string langDir = request.getQueryParam("lang");
-	if (langDir == "en") langDir = ""; // english is the default language
-	std::string fileName = request.getPath() != "/" ? request.getPath() : "index.html";
-
-	filePath = RESOURCES_PATH + langDir + "\\" + fileName;
-
-	std::ifstream file(filePath, std::ios::binary);
-	if (file.is_open()) {
-		std::string content = Utils().HandleFileRead(file);
-		if (request.getPath() == "/") {
-			content = std::regex_replace(content, std::regex("\\{user-data\\}"), getUserData(sockets[index]));
-		}
-		res.setContent(content);
-		res.addHeader("Content-Type", Utils().getMimeTypeFromExtension(filePath));
-		res.setStatus(HTTP_OK);
-	}
-
-	else {
-		res.setStatus(HTTP_NOT_FOUND);
-	}
-}
-
-void HttpServer::HandlePost(const Request& request, Response& res) {
-	std::cout << "Client posted: " << std::endl;
-	for (const auto& line : request.getContent()) {
-		std::cout << line << std::endl;
-	}
-	res.setStatus(HTTP_OK);
-}
-
-void HttpServer::HandleDelete(size_t index, Response& res) {
-	sockets[index].name = "";
-	sockets[index].lenName = 0;
-	res.setStatus(HTTP_OK);
-}
-
-void HttpServer::HandleTrace(const Request& request, Response& res) {
-	res.addHeader("Content-Type", "message/http");
-	res.setStatus(HTTP_OK);
-	res.setContent(request.getOriginalRequest());
-}
-
-int HttpServer::ValidateRoute(const std::string& route, const std::string method) {
+int HttpServer::ValidateRoute(const std::string& route, const std::string method, Method& outMethod) {
 	auto selectedRoute = routes.find(route);
 	if (selectedRoute == routes.end()) {
 		return ROUTE_NOT_FOUND;
 	}
-	if (std::find(selectedRoute->second.begin(), selectedRoute->second.end(), method) == selectedRoute->second.end()) {
+	auto selectedMethod = std::find_if(selectedRoute->second.begin(), selectedRoute->second.end(),
+		[&cm = method]
+	(const Method& m) -> bool {return m.methodName == cm; });
+	if (selectedMethod == selectedRoute->second.end()) {
 		return NOT_ALLOWED;
 	}
+	outMethod = selectedMethod[0];
 	return ALLOWED;
-}
-
-std::string HttpServer::getUserData(SocketState& socketState) {
-	time_t timer;
-	time(&timer);
-	std::string name = socketState.lenName > 0 ? socketState.name : "guest";
-	std::string result = "Hello " + name + "!<br / >Your IP : " + socketState.ip + "<br / >Server time : " + ctime(&timer);
-
-	return result;
 }
 
 // Function to check if a socket has been inactive for 2 minutes
@@ -338,4 +242,3 @@ bool HttpServer::isInactive(const SocketState& socket) {
 	auto elapsedTime = std::chrono::duration_cast<std::chrono::minutes>(currentTime - socket.lastActivityTime);
 	return elapsedTime >= std::chrono::minutes(2);
 }
-

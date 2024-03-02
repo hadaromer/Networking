@@ -9,6 +9,7 @@
 #include <iostream>
 #include <cstring>
 #include <unordered_map>
+#include "../common/consts.h"
 
 const std::unordered_map<std::string, std::string> mime_types = {
 {"txt", "text/plain"},
@@ -20,8 +21,9 @@ class Utils {
 
 public:
 	std::string HandleFileRead(std::ifstream& file);
-	std::string getMimeTypeFromExtension(const std::string& filename); 
+	std::string getMimeTypeFromExtension(const std::string& filename);
 	std::string getCurrentDate();
+	std::string getUserData(SocketState& socketState);
 };
 
 #endif //UTILS_H
